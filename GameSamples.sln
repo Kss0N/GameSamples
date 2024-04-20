@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34714.143
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6A04B00E-3C4C-4BA1-A852-2C6B8BCEDD15}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HelloTriangle", "01-HelloTriangle\HelloTriangle\HelloTriangle.vcxproj", "{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Debug|x64.ActiveCfg = Debug|x64
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Debug|x64.Build.0 = Debug|x64
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Debug|x86.ActiveCfg = Debug|Win32
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Debug|x86.Build.0 = Debug|Win32
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Release|x64.ActiveCfg = Release|x64
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Release|x64.Build.0 = Release|x64
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Release|x86.ActiveCfg = Release|Win32
+		{F48BEEC6-033E-4A66-AA9E-75241FDA64A4}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9B10660B-C9CF-44C8-B6DD-9AFE1800A1BE}
+	EndGlobalSection
+EndGlobal
