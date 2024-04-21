@@ -3,6 +3,9 @@
 
 #include "framework.h"
 #include "HelloTriangle.h"
+#include "Sample01.h"
+
+static Sample01 g_engine;
 
 #define MAX_LOADSTRING 100
 
@@ -20,13 +23,13 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 extern int APIENTRY 
 _tWinMain(_In_      HINSTANCE hInstance,
           _In_opt_  HINSTANCE hPrevInstance,
-          _In_      LPWSTR    lpCmdLine,
+          _In_      LPTSTR    lpCmdLine,
           _In_      int       nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: Place code here.
+    g_engine.OnInit();
 
     // Initialize global strings
     LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -51,8 +54,11 @@ _tWinMain(_In_      HINSTANCE hInstance,
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+        g_engine.OnRender();
     }
 
+    g_engine.OnDestroy();
+    
     return (int) msg.wParam;
 }
 
@@ -65,7 +71,7 @@ _tWinMain(_In_      HINSTANCE hInstance,
 //
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
-    WNDCLASSEX wcex;
+    WNDCLASSEX wcex = {};
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
@@ -77,7 +83,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_HELLOTRIANGLE));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_HELLOTRIANGLE);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -147,17 +152,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
-            EndPaint(hWnd, &ps);
-        }
-        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+    case WM_CREATE:
+    {
+        RECT cr;
+        GetClientRect(hWnd, &cr);
+        DWORD width= cr.right - cr.left,
+            height = cr.bottom - cr.top;
+        g_engine.OnSurfaceLoaded(hWnd, width, height);
+        break;
+    }
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
