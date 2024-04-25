@@ -21,6 +21,7 @@ namespace hlsl
 struct CONST_BUFFER_ALIGNED SceneConstBuffer
 {
 	uint2 rows_cols;
+	float2 sheet_scales;
 
 };
 

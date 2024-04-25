@@ -11,7 +11,7 @@ using namespace DirectX;
 
 
 
-Sample02::Sample02(UINT rows, UINT cols, UINT snakeMaxLength) : m_checkboardRows(rows), m_checkboardCols(cols), m_snakeMaxLength(snakeMaxLength){}
+
 
 void Sample02::recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame)
 {
@@ -49,10 +49,10 @@ void Sample02::recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame)
 	m_cmdList->SetPipelineState(m_snakePipelineState.Get());
 
 	D3D12_VERTEX_BUFFER_VIEW buffer_views[] = {
-		{m_snakeBuffer->GetGPUVirtualAddress(), m_snakeLength+1 * sizeof SnakePart, sizeof SnakePart},
+		{m_snakeBuffer->GetGPUVirtualAddress(), (m_snakeLength+1) * sizeof SnakePart, sizeof SnakePart},
 	};
 	m_cmdList->IASetVertexBuffers(0, _countof(buffer_views), buffer_views);
-	m_cmdList->DrawInstanced(6, 1, 0, 0);
+	m_cmdList->DrawInstanced(6, m_snakeLength + 1, 0, 0);
 	
 	auto post_transition = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[ixFrame].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	m_cmdList->ResourceBarrier(1, &post_transition);
@@ -79,7 +79,7 @@ void Sample02::loadAssets()
 	parameters[RootSig::SceneConstBuffer].InitAsDescriptorTable(1, &cbv_descriptor);
 	parameters[RootSig::SnakeSheet].InitAsDescriptorTable(1, &sheet_range, D3D12_SHADER_VISIBILITY_PIXEL);
 
-	auto sampler_desc = CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT);
+	auto sampler_desc = CD3DX12_STATIC_SAMPLER_DESC(0);
 
 	auto root_sig_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
 	root_sig_desc.Init(_countof(parameters), parameters, 1, &sampler_desc, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -131,8 +131,6 @@ void Sample02::loadAssets()
 				.SrcBlendAlpha = D3D12_BLEND_ONE,
 				.DestBlendAlpha = D3D12_BLEND_ZERO,
 				.BlendOpAlpha = D3D12_BLEND_OP_ADD,
-
-				
 				.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL,
 			}
 		},
@@ -171,6 +169,7 @@ void Sample02::loadAssets()
 	m_sceneConstBuffer->Map(0, &CD3DX12_RANGE(), reinterpret_cast<void**>(&pSceneData));
 	{
 		pSceneData->rows_cols = XMUINT2{ m_checkboardRows, m_checkboardCols };
+		pSceneData->sheet_scales = XMFLOAT2{ 1 / 5.f, 1 / 4.f };
 	}
 	m_sceneConstBuffer->Unmap(0, &CD3DX12_RANGE());
 
@@ -186,15 +185,13 @@ void Sample02::loadAssets()
 
 	std::vector<SnakePart> snake_parts = {
 		// apple in bottom left
-		SnakePart{.snake_coords = {0,0}, .sheet_offset = {0, 3 / 4.f} },
+		SnakePart{.snake_coords = {0,0}, .sheet_offset = c_AppleOffset },
+		SnakePart{.snake_coords = {0,1}, .sheet_offset = c_HeadDown },
+		SnakePart{.snake_coords = {0,2}, .sheet_offset = c_SnakeVertical },
+		SnakePart{.snake_coords = {0,3}, .sheet_offset = c_SnakeBend1 },
+		SnakePart{.snake_coords = {1,3}, .sheet_offset = c_TailRight },
 	};
-	void* pData;
-	m_snakeBuffer->Map(0, &CD3DX12_RANGE(), &pData);
-	{
-		memcpy(pData, snake_parts.data(), snake_parts.size() * sizeof snake_parts[0]);
-	}
-	m_snakeBuffer->Unmap(0, &CD3DX12_RANGE());	
-	m_snakeLength = 0;
+	
 
 	batch.End(m_queue.Get());
 
@@ -208,6 +205,110 @@ void Sample02::loadAssets()
 
 	DirectX::CreateShaderResourceView(m_device.Get(), m_snakeSheet.Get(), 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SnakeSheet, m_cbvSrvUavHeapIncrementSize));
+}
+
+Sample02::Sample02(UINT rows, UINT cols, UINT snakeMaxLength) : m_checkboardRows(rows), m_checkboardCols(cols), m_snakeMaxLength(snakeMaxLength) {}
+
+void Sample02::UpdateEntityPositions(std::span<snake_vector> snake, snake_vector apple)
+{
+	if (m_entities.size() < snake.size() + 1)
+	{
+		m_entities.insert(m_entities.end(), (snake.size() + 1 - m_entities.size()), SnakePart{});
+	}
+
+	m_entities[0] = SnakePart{ .snake_coords = XMUINT2(apple.x, apple.y), .sheet_offset = c_AppleOffset};
+	
+	
+
+	// head
+	auto head = snake[0];
+	
+	auto prev = snake[0];
+	auto next = snake[1];
+
+	INT dX = head.x - next.x;
+	INT dY = head.y - next.y;
+
+	XMFLOAT2 offset{};
+
+	if (dX == +1)
+		offset = c_HeadRight;
+	if (dX == -1)
+		offset = c_HeadLeft;
+	if (dY == +1)
+		offset = c_HeadUp;
+	if (dY == -1)
+		offset = c_HeadDown;
+
+	m_entities[1] = SnakePart{XMUINT2(snake[0].x, snake[0].y), offset };
+
+	// Body piece 1
+
+	for (uint32_t ix = 1; ix < snake.size() - 1; ix++)
+	{
+		auto curr = snake[ix];
+		next = snake[ix + 1];
+
+		INT pre_dX = curr.x - prev.x;
+		INT pre_dY = curr.y - prev.y;
+
+		INT post_dX = curr.x - next.x;
+		INT post_dY = curr.y - next.y;
+
+		if (pre_dY == 0 && post_dY == 0)
+			offset = c_SnakeHorizontal;
+
+		else if (
+			(pre_dX == -1 && pre_dY == 0 && post_dX == 0 && post_dY ==  1) ||
+			(pre_dX ==  0 && pre_dY == 1 && post_dX == -1 && post_dY == 0))
+			offset = c_SnakeBend1;
+
+		else if (
+			(pre_dX == -1 && pre_dY ==  0 && post_dX == 0 && post_dY == -1) ||
+			(pre_dX ==  0 && pre_dY == -1 && post_dX ==-1 && post_dY == 0))
+			offset = c_SnakeBend2;
+
+		else if (
+			(pre_dX == 1 && pre_dY == 0 && post_dX == 0 && post_dY == 1) ||
+			(pre_dX == 0 && pre_dY == 1 && post_dX == 1 && post_dY == 0)
+			)
+			offset = c_SnakeBend3;
+		
+		else if (
+			(pre_dX ==  0 && pre_dY == -1 && post_dX ==  1 && post_dY ==  0) ||
+			(pre_dX ==  1 && pre_dY ==  0 && post_dX ==  0 && post_dY == -1))
+			offset = c_SnakeBend4;
+
+		m_entities[ix+1] = SnakePart{ XMUINT2(snake[ix].x, snake[ix].y), offset };
+
+		prev = snake[ix];
+	}
+
+	prev = snake[snake.size() - 2];
+	auto tail = snake[snake.size() - 1];
+
+	dX = tail.x - prev.x;
+	dY = tail.y - prev.y;
+
+	if (dX == +1)
+		offset = c_TailRight;
+	if (dX == -1)
+		offset = c_TailLeft;
+	if (dY == +1)
+		offset = c_TailUp;
+	if (dY == -1)
+		offset = c_TailDown;
+
+	m_entities[snake.size()] = SnakePart{ XMUINT2{snake[snake.size()-1].x, snake[snake.size()-1].y}, offset};
+
+	
+	void* pData;
+	m_snakeBuffer->Map(0, &CD3DX12_RANGE(), &pData);
+	{
+		memcpy(pData, m_entities.data(), m_entities.size() * sizeof m_entities[0]);
+	}
+	m_snakeBuffer->Unmap(0, &CD3DX12_RANGE());
+	m_snakeLength = snake.size();
 }
 
 void Sample02::waitForGPU()

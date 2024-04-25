@@ -13,8 +13,8 @@ TCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
 static constexpr UINT
-c_Rows = 20u,
-c_Cols = 20u,
+c_Rows = 16u,
+c_Cols = 16u,
 c_MaxSnakeLength = 255;
 
 static Sample02 g_engine(c_Rows, c_Cols, c_MaxSnakeLength);
@@ -50,6 +50,11 @@ _tWinMain(_In_      HINSTANCE hInstance,
         __debugbreak();
         return -1;
     }
+    if (FAILED(CoInitialize(NULL)))
+    {
+        __debugbreak();
+        return -1;
+    }
 
     QueryPerformanceFrequency((PLARGE_INTEGER)&g_qpcFrequency);
     QueryPerformanceCounter((PLARGE_INTEGER)&g_gpcLastCounter);
@@ -71,6 +76,12 @@ _tWinMain(_In_      HINSTANCE hInstance,
 
     MSG msg;
 
+    std::vector<snake_vector> snake = {
+        {3, 5},
+        {2, 5},
+        {1, 5}
+    };
+
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
@@ -79,6 +90,9 @@ _tWinMain(_In_      HINSTANCE hInstance,
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        g_engine.UpdateEntityPositions(std::span(snake), { 0,0 });
+
         g_engine.OnRender();
     }
     g_engine.OnDestroy();

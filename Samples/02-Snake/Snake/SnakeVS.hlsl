@@ -29,9 +29,11 @@ SnakePSInput main(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID,
     float2 quad_as_uv = mul(float3(c_QuadVertices[vertexID], 1), quad_to_uv_matrix);
     
     SnakePSInput ret;
-    ret.pos = float4(c_QuadVertices[vertexID], 0, 1);
+    //ret.pos = float4(c_QuadVertices[vertexID], 0, 1);
     //ret.uv = float2(1/5 * quad_as_uv.x + sheet_offset.x, 1/4 * quad_as_uv.y + sheet_offset.y);
     //ret.uv = quad_as_uv;
-    ret.uv = c_QuadUV[vertexID];
+    ret.pos = float4(pos, 0, 1);
+    ret.uv = float2(g_buffer.sheet_scales.x * quad_as_uv.x + sheet_offset.x, g_buffer.sheet_scales.y * quad_as_uv.y + sheet_offset.y);
+    
     return ret;
 }
