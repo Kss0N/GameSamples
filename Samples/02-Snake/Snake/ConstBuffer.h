@@ -13,12 +13,12 @@ namespace hlsl
 
 	using uint = UINT;
 	using uint2 = DirectX::XMUINT2;
-#define HLSL_ALIGNMENT alignas(256)
+#define CONST_BUFFER_ALIGNED alignas(256)
 #else 
-#define HLSL_ALIGNMENT
+#define CONST_BUFFER_ALIGNED
 #endif // __cplusplus
 
-struct HLSL_ALIGNMENT SceneConstBuffer
+struct CONST_BUFFER_ALIGNED SceneConstBuffer
 {
 	uint2 rows_cols;
 

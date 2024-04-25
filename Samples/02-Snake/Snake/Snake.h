@@ -21,6 +21,7 @@ class Sample02
 	struct CbvSrvUAvHeap {
 		enum {
 			SceneConstBuffer,
+			SnakeSheet,
 
 			Count,
 		};
@@ -28,6 +29,7 @@ class Sample02
 	struct RootSig {
 		enum {
 			SceneConstBuffer,
+			SnakeSheet,
 
 			Count,
 		};
@@ -43,7 +45,7 @@ class Sample02
 	ComPtr<ID3D12GraphicsCommandList> m_cmdList;
 
 	ComPtr<ID3D12RootSignature> m_rootSig;
-	ComPtr<ID3D12PipelineState> m_pipelineState;
+	ComPtr<ID3D12PipelineState> m_checkboardPipelineState;
 
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvSrvUavHeap;
@@ -61,6 +63,7 @@ class Sample02
 
 	UINT m_checkboardRows, m_checkboardCols, m_snakeMaxLength;
 	ComPtr<ID3D12Resource> m_sceneConstBuffer;
+	ComPtr<ID3D12Resource> m_snakeSheet;
 
 	void recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame);
 

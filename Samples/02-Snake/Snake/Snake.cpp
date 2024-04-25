@@ -3,6 +3,9 @@
 
 #include <d3dx12.h>
 #include <d3dcompiler.h>
+#include <WICTextureLoader.h>
+#include <ResourceUploadBatch.h>
+#include <DirectXHelpers.h>
 
 using namespace DirectX;
 
@@ -73,7 +76,7 @@ void Sample02::loadAssets()
 	if (FAILED(hr = D3DReadFileToBlob((getBasePath() / L"CheckboardPS.cso").c_str(), &pixel_shader)))
 		__debugbreak();
 
-	const D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {
+	const D3D12_GRAPHICS_PIPELINE_STATE_DESC checkboard_pipeline_desc = {
 		.pRootSignature = m_rootSig.Get(),
 		.VS = CD3DX12_SHADER_BYTECODE(vertex_shader.Get()),
 		.PS = CD3DX12_SHADER_BYTECODE(pixel_shader.Get()),
@@ -87,7 +90,7 @@ void Sample02::loadAssets()
 		.RTVFormats = {c_BackBufferFormat},
 		.SampleDesc = {.Count = 1},
 	};
-	m_device->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&m_pipelineState));
+	m_device->CreateGraphicsPipelineState(&checkboard_pipeline_desc, IID_PPV_ARGS(&m_checkboardPipelineState));
 
 	m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE, 
@@ -95,14 +98,8 @@ void Sample02::loadAssets()
 		D3D12_RESOURCE_STATE_COMMON,
 		NULL, IID_PPV_ARGS(&m_sceneConstBuffer)	
 	);
-	const D3D12_CONSTANT_BUFFER_VIEW_DESC scene_const_buf_desc = {
-		.BufferLocation = m_sceneConstBuffer->GetGPUVirtualAddress(),
-		.SizeInBytes = sizeof hlsl::SceneConstBuffer,
-	};
-	m_device->CreateConstantBufferView(&scene_const_buf_desc,
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SceneConstBuffer, m_cbvSrvUavHeapIncrementSize)
-	);
-	
+	m_sceneConstBuffer->SetName(L"SceneConstBuffer");
+
 	hlsl::SceneConstBuffer* pData;
 	m_sceneConstBuffer->Map(0, &CD3DX12_RANGE(), reinterpret_cast<void**>(&pData));
 	{
@@ -110,6 +107,27 @@ void Sample02::loadAssets()
 	}
 	m_sceneConstBuffer->Unmap(0, &CD3DX12_RANGE());
 
+	auto batch = DirectX::ResourceUploadBatch(m_device.Get());
+	
+	batch.Begin();
+
+	if (FAILED(hr = CreateWICTextureFromFile(m_device.Get(), batch, (getBasePath() / L"Assets" / L"SnakeSheet.jpg").c_str(), &m_snakeSheet)))
+		__debugbreak();
+	m_snakeSheet->SetName(L"SnakeSheet");
+
+	batch.End(m_queue.Get());
+
+	const D3D12_CONSTANT_BUFFER_VIEW_DESC scene_const_buf_desc = {
+		.BufferLocation = m_sceneConstBuffer->GetGPUVirtualAddress(),
+		.SizeInBytes = sizeof hlsl::SceneConstBuffer,
+	};
+	m_device->CreateConstantBufferView(&scene_const_buf_desc,
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SceneConstBuffer, m_cbvSrvUavHeapIncrementSize)
+	);
+
+
+	DirectX::CreateShaderResourceView(m_device.Get(), m_snakeSheet.Get(), 
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SnakeSheet, m_cbvSrvUavHeapIncrementSize));
 
 }
 
@@ -241,7 +259,7 @@ void Sample02::OnRender()
 
 	m_allocator->Reset();
 
-	m_cmdList->Reset(m_allocator.Get(), m_pipelineState.Get());
+	m_cmdList->Reset(m_allocator.Get(), m_checkboardPipelineState.Get());
 
 	recordCmdList(m_cmdList.Get(), m_ixCurrentFrame);
 

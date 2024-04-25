@@ -16,6 +16,12 @@
     <Filter Include="Shader">
       <UniqueIdentifier>{b3781e8d-3234-4e37-bd03-6d19df62ebee}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader\Checkboard">
+      <UniqueIdentifier>{8d1e182b-4f01-4cc3-9cab-1def175e2b7d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader\Snake">
+      <UniqueIdentifier>{d48aa48c-ef07-405a-a68e-63f6b5091dbe}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -61,13 +67,27 @@
     <None Include="Common.hlsli">
       <Filter>Shader</Filter>
     </None>
+    <None Include="SnakeCommon.hlsli">
+      <Filter>Shader\Snake</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="CheckboardVS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
     <FxCompile Include="CheckboardPS.hlsl">
-      <Filter>Shader</Filter>
+      <Filter>Shader\Checkboard</Filter>
     </FxCompile>
+    <FxCompile Include="CheckboardVS.hlsl">
+      <Filter>Shader\Checkboard</Filter>
+    </FxCompile>
+    <FxCompile Include="SnakeVS.hlsl">
+      <Filter>Shader\Snake</Filter>
+    </FxCompile>
+    <FxCompile Include="SnakePS.hlsl">
+      <Filter>Shader\Snake</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="..\Assets\SnakeSheet.jpg">
+      <Filter>Resource Files</Filter>
+    </CopyFileToFolders>
   </ItemGroup>
 </Project>
