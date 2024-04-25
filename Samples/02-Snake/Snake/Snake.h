@@ -17,6 +17,10 @@ class Sample02
 
 	static constexpr UINT c_BoardSideLength = 400; //Px
 
+	struct SnakePart {
+		DirectX::XMUINT2 snake_coords;
+		DirectX::XMFLOAT2 sheet_offset;
+	};
 
 	struct CbvSrvUAvHeap {
 		enum {
@@ -46,6 +50,7 @@ class Sample02
 
 	ComPtr<ID3D12RootSignature> m_rootSig;
 	ComPtr<ID3D12PipelineState> m_checkboardPipelineState;
+	ComPtr<ID3D12PipelineState> m_snakePipelineState;
 
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvSrvUavHeap;
@@ -62,8 +67,11 @@ class Sample02
 	ComPtr<ID3D12Fence> m_fence;
 
 	UINT m_checkboardRows, m_checkboardCols, m_snakeMaxLength;
+	UINT m_snakeLength;
 	ComPtr<ID3D12Resource> m_sceneConstBuffer;
 	ComPtr<ID3D12Resource> m_snakeSheet;
+	ComPtr<ID3D12Resource> m_snakeBuffer;
+	
 
 	void recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame);
 

@@ -150,7 +150,7 @@
     <ResourceCompile Include="Snake.rc" />
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="..\Assets\SnakeSheet.jpg">
+    <CopyFileToFolders Include="..\Assets\SnakeSheet.png">
       <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)Assets</DestinationFolders>
       <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(OutDir)Assets</DestinationFolders>
       <DestinationFolders Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)Assets</DestinationFolders>

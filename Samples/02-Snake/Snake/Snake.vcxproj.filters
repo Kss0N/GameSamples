@@ -86,7 +86,7 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="..\Assets\SnakeSheet.jpg">
+    <CopyFileToFolders Include="..\Assets\SnakeSheet.png">
       <Filter>Resource Files</Filter>
     </CopyFileToFolders>
   </ItemGroup>

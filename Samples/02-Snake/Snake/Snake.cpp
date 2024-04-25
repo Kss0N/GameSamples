@@ -15,25 +15,27 @@ Sample02::Sample02(UINT rows, UINT cols, UINT snakeMaxLength) : m_checkboardRows
 
 void Sample02::recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame)
 {
-
 	m_cmdList->SetGraphicsRootSignature(m_rootSig.Get());
 
 	ID3D12DescriptorHeap* descriptor_heaps[] = { m_cbvSrvUavHeap.Get() };
 	m_cmdList->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);	
 
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), ixFrame, m_rtvHeapIncrementSize);
-	
+	auto heapHandle = m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+
 	auto viewport = CD3DX12_VIEWPORT((float)(m_rect.right - c_BoardSideLength)/2, (float)(m_rect.bottom - c_BoardSideLength)/2, 
 		(float) c_BoardSideLength, 
 		(float) c_BoardSideLength
 	);
 
-	m_cmdList->SetGraphicsRootDescriptorTable(RootSig::SceneConstBuffer, CD3DX12_GPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart(), 
+	m_cmdList->SetGraphicsRootDescriptorTable(RootSig::SceneConstBuffer, CD3DX12_GPU_DESCRIPTOR_HANDLE(heapHandle, 
 		CbvSrvUAvHeap::SceneConstBuffer, m_cbvSrvUavHeapIncrementSize));
+	m_cmdList->SetGraphicsRootDescriptorTable(RootSig::SnakeSheet, CD3DX12_GPU_DESCRIPTOR_HANDLE(heapHandle,
+		CbvSrvUAvHeap::SnakeSheet, m_cbvSrvUavHeapIncrementSize));
 
 	m_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_cmdList->RSSetScissorRects(1, &m_rect);
-	m_cmdList->RSSetViewports(1, &viewport);
+	m_cmdList->RSSetViewports(1, &viewport); 
 	m_cmdList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
 
 	auto pre_transition = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[ixFrame].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -42,6 +44,16 @@ void Sample02::recordCmdList(ID3D12GraphicsCommandList* list, UINT ixFrame)
 	m_cmdList->ClearRenderTargetView(rtvHandle, c_ClearColor, 0, nullptr);
 	m_cmdList->DrawInstanced(6, m_checkboardCols * m_checkboardRows, 0, 0);
 
+	// Draw Snake and Fruit
+
+	m_cmdList->SetPipelineState(m_snakePipelineState.Get());
+
+	D3D12_VERTEX_BUFFER_VIEW buffer_views[] = {
+		{m_snakeBuffer->GetGPUVirtualAddress(), m_snakeLength+1 * sizeof SnakePart, sizeof SnakePart},
+	};
+	m_cmdList->IASetVertexBuffers(0, _countof(buffer_views), buffer_views);
+	m_cmdList->DrawInstanced(6, 1, 0, 0);
+	
 	auto post_transition = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[ixFrame].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 	m_cmdList->ResourceBarrier(1, &post_transition);
 }
@@ -60,11 +72,17 @@ void Sample02::loadAssets()
 	CD3DX12_DESCRIPTOR_RANGE cbv_descriptor;
 	cbv_descriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1u, 0u);
 
+	CD3DX12_DESCRIPTOR_RANGE sheet_range;
+	sheet_range.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+
 	CD3DX12_ROOT_PARAMETER parameters[RootSig::Count] = {};
 	parameters[RootSig::SceneConstBuffer].InitAsDescriptorTable(1, &cbv_descriptor);
+	parameters[RootSig::SnakeSheet].InitAsDescriptorTable(1, &sheet_range, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	auto sampler_desc = CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_POINT);
 
 	auto root_sig_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
-	root_sig_desc.Init(_countof(parameters), parameters);
+	root_sig_desc.Init(_countof(parameters), parameters, 1, &sampler_desc, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
 	ComPtr<ID3DBlob> signature, error;
 	D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
@@ -84,13 +102,57 @@ void Sample02::loadAssets()
 		.SampleMask = UINT_MAX,
 		.RasterizerState = D3D12_RASTERIZER_DESC{.FillMode = D3D12_FILL_MODE_SOLID, .CullMode = D3D12_CULL_MODE_NONE},
 		.DepthStencilState = D3D12_DEPTH_STENCIL_DESC{.DepthEnable = false, .StencilEnable = false},
-		//TODO input layout
 		.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
 		.NumRenderTargets = 1,
 		.RTVFormats = {c_BackBufferFormat},
 		.SampleDesc = {.Count = 1},
 	};
 	m_device->CreateGraphicsPipelineState(&checkboard_pipeline_desc, IID_PPV_ARGS(&m_checkboardPipelineState));
+
+	if (FAILED(hr = D3DReadFileToBlob((getBasePath() / L"SnakeVS.cso").c_str(), &vertex_shader)))
+		__debugbreak();
+	if (FAILED(hr = D3DReadFileToBlob((getBasePath() / L"SnakePS.cso").c_str(), &pixel_shader)))
+		__debugbreak();
+
+	// See SnakeVS
+	const D3D12_INPUT_ELEMENT_DESC input_element_descs[] = {
+		{"SNAKE_POS",	0, DXGI_FORMAT_R32G32_UINT,	 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+		{"SHEET_OFFSET",0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+
+	};
+	const D3D12_BLEND_DESC blend_desc = {
+		.RenderTarget = {
+			{
+				.BlendEnable = true,
+				.SrcBlend = D3D12_BLEND_SRC_ALPHA,
+				.DestBlend = D3D12_BLEND_INV_SRC_ALPHA,
+				.BlendOp = D3D12_BLEND_OP_ADD,
+
+				.SrcBlendAlpha = D3D12_BLEND_ONE,
+				.DestBlendAlpha = D3D12_BLEND_ZERO,
+				.BlendOpAlpha = D3D12_BLEND_OP_ADD,
+
+				
+				.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL,
+			}
+		},
+	};
+	const D3D12_GRAPHICS_PIPELINE_STATE_DESC snake_pipeline_desc = {
+		.pRootSignature = m_rootSig.Get(),
+		.VS = CD3DX12_SHADER_BYTECODE(vertex_shader.Get()),
+		.PS = CD3DX12_SHADER_BYTECODE(pixel_shader.Get()),
+		.BlendState = blend_desc,
+		//.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+		.SampleMask = UINT_MAX,
+		.RasterizerState = D3D12_RASTERIZER_DESC{.FillMode = D3D12_FILL_MODE_SOLID, .CullMode = D3D12_CULL_MODE_BACK, .FrontCounterClockwise = true},
+		.DepthStencilState = D3D12_DEPTH_STENCIL_DESC{.DepthEnable = false, .StencilEnable = false},
+		.InputLayout = D3D12_INPUT_LAYOUT_DESC{input_element_descs, _countof(input_element_descs)},
+		.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+		.NumRenderTargets = 1,
+		.RTVFormats = {c_BackBufferFormat},
+		.SampleDesc = {.Count = 1},
+	};
+	m_device->CreateGraphicsPipelineState(&snake_pipeline_desc, IID_PPV_ARGS(&m_snakePipelineState));
 
 	m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE, 
@@ -100,10 +162,15 @@ void Sample02::loadAssets()
 	);
 	m_sceneConstBuffer->SetName(L"SceneConstBuffer");
 
-	hlsl::SceneConstBuffer* pData;
-	m_sceneConstBuffer->Map(0, &CD3DX12_RANGE(), reinterpret_cast<void**>(&pData));
+	m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(m_snakeMaxLength + 1), D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_snakeBuffer)
+	);
+
+	hlsl::SceneConstBuffer* pSceneData;
+	m_sceneConstBuffer->Map(0, &CD3DX12_RANGE(), reinterpret_cast<void**>(&pSceneData));
 	{
-		pData->rows_cols = XMUINT2{ m_checkboardRows, m_checkboardCols };
+		pSceneData->rows_cols = XMUINT2{ m_checkboardRows, m_checkboardCols };
 	}
 	m_sceneConstBuffer->Unmap(0, &CD3DX12_RANGE());
 
@@ -111,9 +178,23 @@ void Sample02::loadAssets()
 	
 	batch.Begin();
 
-	if (FAILED(hr = CreateWICTextureFromFile(m_device.Get(), batch, (getBasePath() / L"Assets" / L"SnakeSheet.jpg").c_str(), &m_snakeSheet)))
+	if (FAILED(hr = CreateWICTextureFromFile(m_device.Get(), batch, 
+		(getBasePath() / L"Assets" / L"SnakeSheet.png").c_str(), 
+		&m_snakeSheet)))
 		__debugbreak();
 	m_snakeSheet->SetName(L"SnakeSheet");
+
+	std::vector<SnakePart> snake_parts = {
+		// apple in bottom left
+		SnakePart{.snake_coords = {0,0}, .sheet_offset = {0, 3 / 4.f} },
+	};
+	void* pData;
+	m_snakeBuffer->Map(0, &CD3DX12_RANGE(), &pData);
+	{
+		memcpy(pData, snake_parts.data(), snake_parts.size() * sizeof snake_parts[0]);
+	}
+	m_snakeBuffer->Unmap(0, &CD3DX12_RANGE());	
+	m_snakeLength = 0;
 
 	batch.End(m_queue.Get());
 
@@ -125,10 +206,8 @@ void Sample02::loadAssets()
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SceneConstBuffer, m_cbvSrvUavHeapIncrementSize)
 	);
 
-
 	DirectX::CreateShaderResourceView(m_device.Get(), m_snakeSheet.Get(), 
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), CbvSrvUAvHeap::SnakeSheet, m_cbvSrvUavHeapIncrementSize));
-
 }
 
 void Sample02::waitForGPU()
@@ -143,8 +222,6 @@ void Sample02::waitForGPU()
 	// Increment the fence value for the current frame.
 	m_fenceValue++;
 }
-
-
 
 void Sample02::OnInit()
 {
@@ -191,9 +268,6 @@ void Sample02::OnInit()
 
 	// Gfx Cmd List
 	m_device->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(m_cmdList.ReleaseAndGetAddressOf()));
-
-
-
 
 	m_fenceValue = 0;
 	m_hFenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
