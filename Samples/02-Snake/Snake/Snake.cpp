@@ -162,7 +162,7 @@ void Sample02::loadAssets()
 
 	m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
 		D3D12_HEAP_FLAG_NONE,
-		&CD3DX12_RESOURCE_DESC::Buffer(m_snakeMaxLength + 1), D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_snakeBuffer)
+		&CD3DX12_RESOURCE_DESC::Buffer((m_snakeMaxLength + 1)*sizeof SnakePart), D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&m_snakeBuffer)
 	);
 
 	hlsl::SceneConstBuffer* pSceneData;
@@ -182,16 +182,6 @@ void Sample02::loadAssets()
 		&m_snakeSheet)))
 		__debugbreak();
 	m_snakeSheet->SetName(L"SnakeSheet");
-
-	std::vector<SnakePart> snake_parts = {
-		// apple in bottom left
-		SnakePart{.snake_coords = {0,0}, .sheet_offset = c_AppleOffset },
-		SnakePart{.snake_coords = {0,1}, .sheet_offset = c_HeadDown },
-		SnakePart{.snake_coords = {0,2}, .sheet_offset = c_SnakeVertical },
-		SnakePart{.snake_coords = {0,3}, .sheet_offset = c_SnakeBend1 },
-		SnakePart{.snake_coords = {1,3}, .sheet_offset = c_TailRight },
-	};
-	
 
 	batch.End(m_queue.Get());
 
@@ -257,6 +247,8 @@ void Sample02::UpdateEntityPositions(std::span<snake_vector> snake, snake_vector
 
 		if (pre_dY == 0 && post_dY == 0)
 			offset = c_SnakeHorizontal;
+		else if (pre_dX == 0 && post_dX == 0)
+			offset = c_SnakeVertical;
 
 		else if (
 			(pre_dX == -1 && pre_dY == 0 && post_dX == 0 && post_dY ==  1) ||
@@ -299,7 +291,10 @@ void Sample02::UpdateEntityPositions(std::span<snake_vector> snake, snake_vector
 	if (dY == -1)
 		offset = c_TailDown;
 
-	m_entities[snake.size()] = SnakePart{ XMUINT2{snake[snake.size()-1].x, snake[snake.size()-1].y}, offset};
+	m_entities[snake.size()] = SnakePart { 
+		.snake_coords = XMUINT2{UINT(snake[snake.size()-1].x), UINT(snake[snake.size()-1].y)}, 
+		.sheet_offset = offset
+	};
 
 	
 	void* pData;

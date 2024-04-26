@@ -10,7 +10,11 @@
 
 struct snake_vector
 {
-	UINT x, y;
+	INT x, y;
+	bool operator==(snake_vector& that)
+	{
+		return this->x == that.x && this->y == that.y;
+	}
 };
 
 class Sample02 

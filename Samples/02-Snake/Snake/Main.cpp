@@ -21,8 +21,22 @@ static Sample02 g_engine(c_Rows, c_Cols, c_MaxSnakeLength);
 static DirectX::Keyboard g_keyboard;
 
 static LONGLONG g_qpcFrequency;
-static LONGLONG g_gpcLastCounter;
+static LONGLONG g_qpcLastCounter;
 
+static constexpr double c_FrameTimeSeconds = .33;
+
+struct SnakeGame 
+{
+    std::vector<snake_vector> snake;
+
+    snake_vector apple;
+
+    snake_vector facing_dir;
+
+    void Tick(bool bGrow);
+
+};
+static SnakeGame g_game;
 
 
 // Forward declarations of functions included in this code module:
@@ -57,9 +71,14 @@ _tWinMain(_In_      HINSTANCE hInstance,
     }
 
     QueryPerformanceFrequency((PLARGE_INTEGER)&g_qpcFrequency);
-    QueryPerformanceCounter((PLARGE_INTEGER)&g_gpcLastCounter);
+    QueryPerformanceCounter((PLARGE_INTEGER)&g_qpcLastCounter);
 
     g_engine.OnInit();
+
+    g_game.snake = { snake_vector(2, 7), snake_vector{1,7} };
+    g_game.apple = snake_vector{ 10,10 };
+
+    g_game.facing_dir = snake_vector{ 1, 0 };
 
     // Initialize global strings
     LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -74,27 +93,77 @@ _tWinMain(_In_      HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAKE));
 
-    MSG msg;
-
-    std::vector<snake_vector> snake = {
-        {3, 5},
-        {2, 5},
-        {1, 5}
-    };
-
     // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
+    MSG msg;
+    while (true)
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
         }
+        if (msg.message == WM_QUIT)
+            goto EXIT;
 
-        g_engine.UpdateEntityPositions(std::span(snake), { 0,0 });
+        LONGLONG qpcCurrentTime;
+        QueryPerformanceCounter((PLARGE_INTEGER)&qpcCurrentTime);
+
+        double dt = double(qpcCurrentTime - g_qpcLastCounter) / g_qpcFrequency;
 
         g_engine.OnRender();
+
+        if (dt < c_FrameTimeSeconds)
+            continue;
+        g_qpcLastCounter = qpcCurrentTime;
+
+        auto state = g_keyboard.GetState();
+        
+        // Will only be able to move in one direction at a time.
+        
+        if (g_game.facing_dir.y == 0)
+        {
+            auto vertical_turn = INT(state.IsKeyDown(g_keyboard.Up)) - INT(state.IsKeyDown(g_keyboard.Down));
+            if(vertical_turn != 0)
+                g_game.facing_dir = snake_vector{ 0, vertical_turn};
+        }
+        else if (g_game.facing_dir.x == 0)
+        {
+            auto horizontal_turn = INT(state.IsKeyDown(g_keyboard.Right)) - INT(state.IsKeyDown(g_keyboard.Left));
+            if (horizontal_turn != 0)
+                g_game.facing_dir = snake_vector{ horizontal_turn, 0 };
+        }
+
+        // Handle Apple
+        if (g_game.apple == g_game.snake[0])
+        {
+            snake_vector candidate;
+            while (true)
+            {
+                candidate = snake_vector{ INT(rand() % c_Rows), INT(rand() % c_Cols) };
+                for (auto& body : g_game.snake)
+                {
+                    if (body == candidate)
+                        goto CONTINUE;
+
+                }
+                break;
+            CONTINUE:
+                continue;
+            }
+
+            g_game.apple = candidate;
+
+            g_game.Tick(true);
+        }
+        else
+            g_game.Tick(false);
+
+        g_engine.UpdateEntityPositions(std::span(g_game.snake), g_game.apple);        
     }
+EXIT:
     g_engine.OnDestroy();
     return (int) msg.wParam;
 }
@@ -224,4 +293,22 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+void SnakeGame::Tick(bool bGrow)
+{
+    auto tail = snake[snake.size() - 1];
+
+    // Move all of them a step forward.
+    for (auto ix = snake.size()-1; ix > 0; ix--)
+    {
+        auto& curr = snake[ix];
+        auto prev = snake[ix - 1];
+
+        curr = prev;
+    }
+    snake[0] = snake_vector{ snake[0].x + facing_dir.x, snake[0].y + facing_dir.y };
+
+    if (bGrow)
+        snake.push_back(tail);
 }
