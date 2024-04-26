@@ -25,6 +25,11 @@ static LONGLONG g_qpcLastCounter;
 
 static constexpr double c_FrameTimeSeconds = .33;
 
+static constexpr snake_vector c_DefaultApple = { 10,10 };
+static constexpr snake_vector c_DefaultDir = { 1, 0 };
+static const inline std::vector<snake_vector> c_DefaultSnake = { snake_vector(2, 7), snake_vector{1,7} };
+
+
 struct SnakeGame 
 {
     std::vector<snake_vector> snake;
@@ -33,15 +38,31 @@ struct SnakeGame
 
     snake_vector facing_dir;
 
-    void Tick(bool bGrow);
+    UINT score;
 
+    void Tick(bool bGrow);
 };
 static SnakeGame g_game;
+
+inline bool isInsideBoundary(snake_vector head, INT rows, INT cols)
+{
+    return  (0 <= head.x && head.x < rows) && (0 <= head.y && head.y < cols);
+}
+inline bool collidesWithSelf(std::span<snake_vector> snake)
+{
+    auto head = snake[0];
+    for (UINT ix = 1; ix < snake.size(); ix++)
+    {
+        if (head == snake[ix])
+            return true;
+    }
+    return false;
+}
 
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
+HWND                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
@@ -75,20 +96,21 @@ _tWinMain(_In_      HINSTANCE hInstance,
 
     g_engine.OnInit();
 
-    g_game.snake = { snake_vector(2, 7), snake_vector{1,7} };
-    g_game.apple = snake_vector{ 10,10 };
-
-    g_game.facing_dir = snake_vector{ 1, 0 };
+    g_game.snake = c_DefaultSnake;
+    g_game.apple = c_DefaultApple;
+    g_game.facing_dir = c_DefaultDir;
 
     // Initialize global strings
     LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadString(hInstance, IDC_SNAKE, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
+    HWND hWnd = InitInstance(hInstance, nCmdShow);
+
     // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
+    if (hWnd == NULL)
     {
-        return FALSE;
+        return -1;
     }
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAKE));
@@ -108,21 +130,18 @@ _tWinMain(_In_      HINSTANCE hInstance,
         if (msg.message == WM_QUIT)
             goto EXIT;
 
+        g_engine.OnRender();
+
         LONGLONG qpcCurrentTime;
         QueryPerformanceCounter((PLARGE_INTEGER)&qpcCurrentTime);
 
         double dt = double(qpcCurrentTime - g_qpcLastCounter) / g_qpcFrequency;
-
-        g_engine.OnRender();
-
         if (dt < c_FrameTimeSeconds)
             continue;
         g_qpcLastCounter = qpcCurrentTime;
 
-        auto state = g_keyboard.GetState();
-        
         // Will only be able to move in one direction at a time.
-        
+        auto state = g_keyboard.GetState();
         if (g_game.facing_dir.y == 0)
         {
             auto vertical_turn = INT(state.IsKeyDown(g_keyboard.Up)) - INT(state.IsKeyDown(g_keyboard.Down));
@@ -153,6 +172,7 @@ _tWinMain(_In_      HINSTANCE hInstance,
             CONTINUE:
                 continue;
             }
+            g_game.score++;
 
             g_game.apple = candidate;
 
@@ -160,6 +180,28 @@ _tWinMain(_In_      HINSTANCE hInstance,
         }
         else
             g_game.Tick(false);
+
+        // Handle collision
+        if (!isInsideBoundary(g_game.snake[0], c_Rows, c_Cols) || collidesWithSelf(g_game.snake))
+        {
+            // GAME OVER
+            INT option = MessageBox(nullptr, _T("Game OVER!"), _T("Snake Game"), MB_RETRYCANCEL);
+            if (option == IDRETRY)
+            {
+                // Reset Game state.
+
+                g_game.score = 0;
+                g_game.apple = c_DefaultApple;
+                g_game.facing_dir = c_DefaultDir;
+
+                g_game.snake.clear();
+                g_game.snake.insert(g_game.snake.end(), c_DefaultSnake.begin(), c_DefaultSnake.end());
+            }
+            else if (option == IDCANCEL)
+            {
+                DestroyWindow(hWnd);
+            }
+        }
 
         g_engine.UpdateEntityPositions(std::span(g_game.snake), g_game.apple);        
     }
@@ -205,7 +247,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //        In this function, we save the instance handle in a global variable and
 //        create and display the main program window.
 //
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+HWND InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
@@ -218,13 +260,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    if (!hWnd)
    {
-      return FALSE;
+      return NULL;
    }
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
-   return TRUE;
+   return hWnd;
 }
 
 //
