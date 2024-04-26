@@ -23,7 +23,7 @@ static DirectX::Keyboard g_keyboard;
 static LONGLONG g_qpcFrequency;
 static LONGLONG g_qpcLastCounter;
 
-static constexpr double c_FrameTimeSeconds = .33;
+static constexpr double c_FrameTimeSeconds = .25;
 
 static constexpr snake_vector c_DefaultApple = { 10,10 };
 static constexpr snake_vector c_DefaultDir = { 1, 0 };
@@ -119,6 +119,7 @@ _tWinMain(_In_      HINSTANCE hInstance,
     MSG msg;
     while (true)
     {
+        // Messages
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
             if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
@@ -185,7 +186,11 @@ _tWinMain(_In_      HINSTANCE hInstance,
         if (!isInsideBoundary(g_game.snake[0], c_Rows, c_Cols) || collidesWithSelf(g_game.snake))
         {
             // GAME OVER
-            INT option = MessageBox(nullptr, _T("Game OVER!"), _T("Snake Game"), MB_RETRYCANCEL);
+
+            TCHAR buf[32];
+            _stprintf_s(buf, _countof(buf), _T("GAME OVER! (Score:%d)"), g_game.score);
+
+            INT option = MessageBox(nullptr, buf, _T("Snake Game"), MB_RETRYCANCEL);
             if (option == IDRETRY)
             {
                 // Reset Game state.
@@ -284,23 +289,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     g_keyboard.ProcessMessage(message, wParam, lParam);
     switch (message)
     {
-    case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -315,26 +303,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
-}
-
-// Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
 }
 
 void SnakeGame::Tick(bool bGrow)
