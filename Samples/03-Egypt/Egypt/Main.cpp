@@ -4,6 +4,7 @@
 #include "framework.h"
 #include "Egypt.h"
 
+#include <assert.h>
 #include <memory>
 
 #define MAX_LOADSTRING 64
@@ -120,6 +121,8 @@ ATOM RegisterMainClass(HINSTANCE hInstance)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     static Egypt* s_pEngine = NULL;
+    static bool s_bSuspend = false;
+    static bool s_bMinimized = false;
 
     switch (message)
     {
@@ -138,6 +141,45 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
         }
+        break;
+    }
+    case WM_SIZE: {
+
+        WORD eSize = (WORD)wParam,
+             width = LOWORD(lParam),
+            height = HIWORD(lParam);
+
+        switch (eSize)
+        {
+        case SIZE_RESTORED:
+        case SIZE_MAXIMIZED:
+        {
+            if (s_bMinimized && s_bSuspend) {
+                s_bMinimized = false;
+                s_bSuspend = false;
+                s_pEngine->OnResume();
+            }
+            s_pEngine->OnResize(width, height);
+            break;
+        }
+        
+        case SIZE_MINIMIZED:
+        {
+            if (!s_bMinimized || !s_bSuspend)
+            {
+                s_pEngine->OnSuspend();
+            }
+            s_bMinimized = true;
+            s_bSuspend = true;
+            break;
+        }
+        default:
+            assert(eSize == SIZE_MAXSHOW || eSize == SIZE_MAXHIDE);
+            break;
+        }
+
+
+
         break;
     }
     case WM_DESTROY:

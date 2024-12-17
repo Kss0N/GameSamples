@@ -55,6 +55,12 @@ public:
 
 	void OnSurfaceLoaded(HWND hWnd, UINT width, UINT height);
 
+	void OnResize(UINT width, UINT height);
+
+	void OnSuspend();
+
+	void OnResume();
+
 	void OnRender();
 
 };

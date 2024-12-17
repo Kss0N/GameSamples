@@ -65,6 +65,7 @@ void Egypt::OnInit()
 		p_debug->EnableDebugLayer();
 #endif // _DEBUG
 
+	// TODO: find adapter. This is not needed for simpler games.
 	if (FAILED(hr = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(m_device.ReleaseAndGetAddressOf()))))
 	{
 		__debugbreak();
@@ -159,6 +160,12 @@ void Egypt::OnSurfaceLoaded(HWND hWnd, UINT width, UINT height)
 	ComPtr<IDXGISwapChain1> dummy_swapchain;
 	factory->CreateSwapChainForHwnd(m_queue.Get(), hWnd, &swap_chain_desc, NULL, NULL, dummy_swapchain.GetAddressOf());
 	dummy_swapchain->QueryInterface(m_swapChain.ReleaseAndGetAddressOf());
+}
+
+void Egypt::OnResize(UINT width, UINT height)
+{
+	for (auto rt : m_renderTargets)
+		rt.Reset();
 
 	// Get the buffers and create RTVs for each of them.
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -171,6 +178,17 @@ void Egypt::OnSurfaceLoaded(HWND hWnd, UINT width, UINT height)
 
 	m_ixCurrentFrame = m_swapChain->GetCurrentBackBufferIndex();
 	m_rect = RECT{ 0,0, (LONG)width, (LONG)height };
+
+}
+
+void Egypt::OnSuspend()
+{
+	OutputDebugStringA("Suspending!");
+}
+
+void Egypt::OnResume()
+{
+	OutputDebugStringA("Resuming!");
 }
 
 void Egypt::OnRender()
