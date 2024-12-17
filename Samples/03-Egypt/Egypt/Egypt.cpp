@@ -18,19 +18,20 @@ void Egypt::recordCommandList(ID3D12GraphicsCommandList* cmdlist)
 
 	auto viewport = CD3DX12_VIEWPORT(0.f, 0.f, (FLOAT)m_rect.right, (FLOAT)m_rect.bottom);
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_ixCurrentFrame, m_rtvHeapIncrementSize);
+	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
 	cmdlist->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdlist->RSSetScissorRects(1, &m_rect);
 	cmdlist->RSSetViewports(1, &viewport);
-	cmdlist->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+	cmdlist->OMSetRenderTargets(1, &rtvHandle, false, &dsvHandle);
 
 	// Back Buffer must be in Render Target resource State in order to be drawn onto.
 	auto pre_transition = CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_ixCurrentFrame].Get(),
-		D3D12_RESOURCE_STATE_PRESENT,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	cmdlist->ResourceBarrier(1, &pre_transition);
 
 	cmdlist->ClearRenderTargetView(rtvHandle, c_ClearColor, 0, nullptr);
+	cmdlist->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.f, 0, 0, nullptr);
 	cmdlist->DrawInstanced(3, 1, 0, 0);
 
 	// Back Buffer must be in Present Resource state in order to be presented.
@@ -84,6 +85,13 @@ void Egypt::OnInit()
 	};
 	m_device->CreateDescriptorHeap(&rtv_desc, IID_PPV_ARGS(m_rtvHeap.ReleaseAndGetAddressOf()));
 	m_rtvHeapIncrementSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+	const D3D12_DESCRIPTOR_HEAP_DESC dsv_desc = {
+		.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+		.NumDescriptors = 1,
+	};
+	m_device->CreateDescriptorHeap(&dsv_desc, IID_PPV_ARGS(m_dsvHeap.ReleaseAndGetAddressOf()));
+	m_dsvHeapIncrementSize = m_device->GetDescriptorHandleIncrementSize(dsv_desc.Type);
 
 	m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_allocator.ReleaseAndGetAddressOf()));
 
@@ -166,6 +174,24 @@ void Egypt::OnResize(UINT width, UINT height)
 {
 	for (auto rt : m_renderTargets)
 		rt.Reset();
+
+	m_swapChain->ResizeBuffers(c_FrameCount, width, height, c_BackBufferFormat, 0);
+
+	m_device->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Tex2D(c_DepthStencilFormat, 
+			width,
+			height,
+			1,
+			0,
+			1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&CD3DX12_CLEAR_VALUE(c_DepthStencilFormat, 1.f, 0),
+		IID_PPV_ARGS(m_depthStencilImage.ReleaseAndGetAddressOf()));
+	
+	auto dsvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+	m_device->CreateDepthStencilView(m_depthStencilImage.Get(), NULL, dsvHandle);
 
 	// Get the buffers and create RTVs for each of them.
 	auto rtvHandle = CD3DX12_CPU_DESCRIPTOR_HANDLE(m_rtvHeap->GetCPUDescriptorHandleForHeapStart());

@@ -16,6 +16,7 @@ class Egypt
 
 	static constexpr UINT c_FrameCount = 2;
 	static constexpr DXGI_FORMAT c_BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	static constexpr DXGI_FORMAT c_DepthStencilFormat = DXGI_FORMAT_D32_FLOAT;
 
 	static const inline float c_ClearColor[4] = { .2f, .2f, 0.8f, 1.f };
 
@@ -28,9 +29,12 @@ class Egypt
 	ComPtr<ID3D12PipelineState> m_pipeline;
 
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	UINT m_rtvHeapIncrementSize;
+	UINT m_dsvHeapIncrementSize;
 
 	ComPtr<ID3D12Resource> m_renderTargets[c_FrameCount];
+	ComPtr<ID3D12Resource> m_depthStencilImage;
 	ComPtr<IDXGISwapChain4> m_swapChain;
 	RECT m_rect;
 	UINT m_ixCurrentFrame;
