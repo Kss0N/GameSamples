@@ -4,7 +4,7 @@
 #include "framework.h"
 #include "Egypt.h"
 
-static Egypt g_engine;
+#include <memory>
 
 #define MAX_LOADSTRING 64
 
@@ -30,7 +30,9 @@ _tWinMain(HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    g_engine.OnInit();
+    auto pEngine = std::make_unique<Egypt>();
+
+    pEngine->OnInit();
 
     // Initialize global strings
     LoadString(hInstance, IDS_APP_TITLE, g_zTitle, MAX_LOADSTRING);
@@ -47,7 +49,7 @@ _tWinMain(HINSTANCE hInstance,
         CW_USEDEFAULT, 0,
         // Width * Height
         CW_USEDEFAULT, 0,
-        NULL, NULL, hInstance, NULL);
+        NULL, NULL, hInstance, pEngine.get());
 
     if (!hWnd)
         return FALSE;
@@ -72,10 +74,10 @@ _tWinMain(HINSTANCE hInstance,
             continue; // keep going until message loop is empty.
         }
 
-        g_engine.OnRender();
+        pEngine->OnRender();
     }
 
-    g_engine.OnDestroy();
+    pEngine->OnDestroy();
     
     return (int) msg.wParam;
 }
@@ -117,6 +119,8 @@ ATOM RegisterMainClass(HINSTANCE hInstance)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    static Egypt* s_pEngine = NULL;
+
     switch (message)
     {
     case WM_COMMAND:
@@ -141,11 +145,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_CREATE:
     {
+        LPCREATESTRUCT pCS = (LPCREATESTRUCT)lParam;
+        if (!pCS->lpCreateParams) {
+            return -1;
+        }
+        s_pEngine = (Egypt*)pCS->lpCreateParams;
+
         RECT cr;
         GetClientRect(hWnd, &cr);
         WORD width = (WORD)(cr.right - cr.left),
             height = (WORD)(cr.bottom - cr.top);
-        g_engine.OnSurfaceLoaded(hWnd, width, height);
+
+        s_pEngine->OnSurfaceLoaded(hWnd, width, height);
         break;
     }
     default:
